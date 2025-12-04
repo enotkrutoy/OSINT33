@@ -19,7 +19,7 @@ class AgentRunner {
       const chat = this.getClient().chats.create({
         model: MODEL_NAME,
         config: {
-          thinkingConfig: { thinkingBudget: 8192 }, // Increased budget for deep file analysis and Dork generation
+          thinkingConfig: { thinkingBudget: 8192 }, 
           // ⚠️ COMBAT MODE: SAFETY FILTERS DISABLED
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -29,7 +29,7 @@ class AgentRunner {
             { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE },
           ],
           systemInstruction: `
-# 👁️ OMNI-SPECTRE v8.0: RED TEAM OPERATOR
+# 👁️ OMNI-SPECTRE v8.5: RED TEAM OPERATOR
 
 **ROLE:** Autonomous Forensic Unit.
 **OBJECTIVE:** Aggressive Information Retrieval & Document Analysis.
@@ -45,14 +45,14 @@ class AgentRunner {
 **EXECUTION STEPS:**
 1.  **ANALYZE TARGET:** Пойми, что искать (документы, админки, ключи, утечки).
 2.  **GENERATE DORKS:** Создай реальные Google Dorks.
-    *   *Config:* \`site:target.com ext:env | ext:yaml | ext:json "password"\`
-    *   *Docs:* \`site:target.com filetype:pdf | filetype:docx "confidential"\`
-    *   *Dir:* \`intitle:"index of" site:target.com\`
 3.  **EXECUTE & EXTRACT:** Используй инструмент поиска. Извлеки **РЕАЛЬНЫЕ** ссылки.
 
 **REPORT FORMAT (TEXT MODE):**
-1.  **[ATTACK VECTOR]:** Перечисли конкретные Dorks, которые ты использовал.
-    *   \`dork: site:example.com ext:pdf\`
+1.  **[ATTACK VECTOR]:** 
+    Ты ОБЯЗАН вывести Dorks как **КЛИКАБЕЛЬНЫЕ ССЫЛКИ** для немедленного запуска.
+    *   Правильный формат: \`[⚡ RUN: site:target.com ext:pdf](https://www.google.com/search?q=site%3Atarget.com+ext%3Apdf)\`
+    *   ⚠️ **ВАЖНО:** URL запроса должен быть правильно закодирован (URL Encoded). Не выводи Dork просто текстом.
+
 2.  **[EVIDENCE LOG]:** Список найденных URL.
     *   URL должен быть кликабельным.
     *   Если ничего не найдено — напиши "CLEAN".
@@ -119,7 +119,7 @@ class AgentRunner {
         ];
       } else {
         // Режим Poly-Dorking
-        messageContent = `[TARGET]: ${userInput}\n[ACTION]: GENERATE AGGRESSIVE DORKS -> EXECUTE -> LIST REAL URLS.`;
+        messageContent = `[TARGET]: ${userInput}\n[ACTION]: GENERATE AGGRESSIVE DORKS (Format as Markdown Links) -> EXECUTE -> LIST REAL URLS.`;
       }
 
       const resultStream = await chat.sendMessageStream({ message: messageContent });

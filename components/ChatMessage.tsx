@@ -197,7 +197,29 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message, isLast, 
            ) : (
              <ReactMarkdown 
                remarkPlugins={[remarkGfm]}
-               components={{ code: CodeBlock }}
+               components={{ 
+                  code: CodeBlock,
+                  // Custom Link Renderer for Dorks
+                  a: ({ href, children }) => {
+                    const isGoogleSearch = href?.includes('google.com/search');
+                    return (
+                      <a 
+                        href={href} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className={isGoogleSearch 
+                          ? "inline-flex items-center gap-2 px-3 py-1.5 my-1 bg-red-900/30 border border-red-500/50 text-red-200 text-xs font-mono font-bold rounded uppercase hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(220,38,38,0.2)] no-underline group"
+                          : "text-indigo-400 hover:text-indigo-300 border-b border-indigo-500/30 hover:border-indigo-500 transition-colors"
+                        }
+                      >
+                        {isGoogleSearch && (
+                           <svg className="w-3 h-3 group-hover:animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        )}
+                        {children}
+                      </a>
+                    );
+                  }
+               }}
              >
                 {message.content}
              </ReactMarkdown>
