@@ -50,8 +50,8 @@ class AgentRunner {
 **REPORT FORMAT (TEXT MODE):**
 1.  **[ATTACK VECTOR]:** 
     Ты ОБЯЗАН вывести Dorks как **КЛИКАБЕЛЬНЫЕ КНОПКИ** (Markdown Links).
-    *   Правильный формат: \`[⚡ LAUNCH DORK: site:target.com](https://www.google.com/search?q=site%3Atarget.com)\`
-    *   **ТРЕБОВАНИЕ:** Текст ссылки должен быть кратким (начинаться с "⚡"), а URL должен быть правильно закодирован (URL Encoded).
+    *   Правильный формат: \`[⚡ LAUNCH: site:target.com ext:pdf](https://www.google.com/search?q=site%3Atarget.com+ext%3Apdf)\`
+    *   **ТРЕБОВАНИЕ:** Текст ссылки должен быть кратким (напр. "⚡ LAUNCH: описание"), а URL должен быть закодирован (URL Encoded).
 
 2.  **[EVIDENCE LOG]:** Список найденных URL.
     *   URL должен быть кликабельным.
@@ -119,7 +119,7 @@ class AgentRunner {
         ];
       } else {
         // Режим Poly-Dorking
-        messageContent = `[TARGET]: ${userInput}\n[ACTION]: GENERATE AGGRESSIVE DORKS (Format as Markdown Links with '⚡' label) -> EXECUTE -> LIST REAL URLS.`;
+        messageContent = `[TARGET]: ${userInput}\n[ACTION]: GENERATE AGGRESSIVE DORKS (Format as Markdown Links with '⚡ LAUNCH' label) -> EXECUTE -> LIST REAL URLS.`;
       }
 
       const resultStream = await chat.sendMessageStream({ message: messageContent });
