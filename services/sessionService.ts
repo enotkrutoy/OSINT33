@@ -5,6 +5,13 @@ import { Message, MessageRole, SessionState } from '../types';
  */
 const STORAGE_KEY = 'crawl4ai_validator_sessions';
 
+export interface SessionSummary {
+  id: string;
+  title: string;
+  timestamp: number;
+  preview: string;
+}
+
 class InMemorySessionService {
   private sessions: Map<string, Message[]> = new Map();
 
@@ -56,6 +63,24 @@ class InMemorySessionService {
   public clearSession(sessionId: string): void {
     this.sessions.delete(sessionId);
     this.saveToStorage();
+  }
+
+  public getSessionsSummary(): SessionSummary[] {
+    const summaries: SessionSummary[] = [];
+    this.sessions.forEach((messages, id) => {
+      // Find first user message for title
+      const userMsg = messages.find(m => m.role === MessageRole.USER);
+      const title = userMsg ? userMsg.content.slice(0, 40) + (userMsg.content.length > 40 ? '...' : '') : 'New Session';
+      const lastMsg = messages[messages.length - 1];
+      
+      summaries.push({
+        id,
+        title,
+        timestamp: lastMsg ? lastMsg.timestamp : Date.now(),
+        preview: lastMsg ? lastMsg.content.slice(0, 60) : ''
+      });
+    });
+    return summaries.sort((a, b) => b.timestamp - a.timestamp);
   }
 }
 

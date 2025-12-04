@@ -5,8 +5,8 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const scannerCode = `javascript:(function(){
   /* 
-   * 🕵️ RED TEAM DOM AUDITOR v3.0 
-   * Features: Shadow DOM, Global Var Scanning, API Key Patterns, Source Map Detection
+   * 🕵️ RED TEAM DOM AUDITOR v3.1 
+   * Features: Shadow DOM, Global Var Scanning, API Key Patterns, .git Exposure
    */
   if(document.getElementById('rt-scanner-ui')) return;
 
@@ -25,7 +25,7 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   
   const header = document.createElement('div');
   header.style.cssText = 'padding:10px;background:#1e293b;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center;border-radius:8px 8px 0 0;';
-  header.innerHTML = '<span style="color:#f97316;font-weight:bold;">🔥 RT DOM AUDITOR</span><button id="rt-close" style="background:none;border:none;color:#94a3b8;cursor:pointer;">✕</button>';
+  header.innerHTML = '<span style="color:#f97316;font-weight:bold;">🔥 RT DOM AUDITOR v3.1</span><button id="rt-close" style="background:none;border:none;color:#94a3b8;cursor:pointer;">✕</button>';
   
   const content = document.createElement('div');
   content.id = 'rt-results';
@@ -58,6 +58,30 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     content.scrollTop = content.scrollHeight;
   }
 
+  // Check for Exposed .git
+  async function checkGitExposure() {
+    log('Checking for /.git/ exposure...', 'info');
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+        
+        const res = await fetch('/.git/HEAD', { 
+            method: 'GET', 
+            signal: controller.signal 
+        });
+        clearTimeout(timeoutId);
+
+        if(res.status === 200) {
+            const text = await res.text();
+            if(text.includes('ref: refs/')) {
+                 log('<span style="color:#ef4444">[CRITICAL] /.git/HEAD is publicly accessible!</span> Source code theft possible.', 'danger');
+                 return;
+            }
+        }
+    } catch(e) {}
+    log('Git check completed (Clean or blocked).', 'success');
+  }
+
   function scanShadowDom(root, depth=0) {
     if(depth > MAX_DEPTH) return [];
     let elements = [];
@@ -85,13 +109,12 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   function scanGlobals() {
     log('Scanning Window Objects...', 'info');
     const suspiciousKeys = ['api', 'key', 'secret', 'token', 'config', 'env', 'firebase', 'aws'];
-    const safeObjs = new Set(['performance', 'styleMedia', 'crypto', 'indexedDB']); // Filter noise
+    const safeObjs = new Set(['performance', 'styleMedia', 'crypto', 'indexedDB']); 
     
     for(const key of Object.getOwnPropertyNames(window)) {
       if(safeObjs.has(key)) continue;
-      
       const isSuspicious = suspiciousKeys.some(k => key.toLowerCase().includes(k));
-      if(isSuspicious || key.startsWith('__')) { // __NEXT_DATA__, __NUXT__
+      if(isSuspicious || key.startsWith('__')) { 
         try {
           const val = window[key];
           if(typeof val === 'object' && val !== null) {
@@ -108,6 +131,9 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     content.innerHTML = '';
     log('🚀 Starting Deep Scan...');
     
+    // 0. Git Check
+    await checkGitExposure();
+
     // 1. DOM Scan
     const allEls = scanShadowDom(document.body);
     log(\`Analyzed \${allEls.length} DOM nodes (including Shadow Roots)\`, 'success');
@@ -127,7 +153,6 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     for(const script of scripts) {
       if(script.src) {
         try {
-           // We verify if source map exists by convention
            const res = await fetch(script.src, {method: 'HEAD'});
            if(res.ok) log(\`<span style="color:#3b82f6">[SCRIPT]</span> \${script.src.split('/').pop()}\`);
         } catch(e) {}
@@ -151,12 +176,12 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <div className="bg-[#0f172a] border border-slate-700 w-full max-w-2xl rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-[#0f172a] border border-slate-700 w-full max-w-2xl rounded-lg shadow-2xl flex flex-col max-h-[90vh] animate-fade-in">
         <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-[#1e293b] rounded-t-lg">
           <h2 className="text-orange-500 font-mono font-bold flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-            RED TEAM DOM AUDITOR
+            RED TEAM DOM AUDITOR v3.1
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -165,27 +190,26 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         
         <div className="p-6 overflow-y-auto">
           <p className="text-slate-300 mb-4 text-sm leading-relaxed">
-            Этот JavaScript-скрипт предназначен для <strong>локального аудита веб-страниц</strong>. 
-            Он работает прямо в браузере жертвы/цели и способен находить скрытые данные, которые не видны при обычном парсинге.
+            Этот скрипт выполняет глубокий аудит клиентской части (Frontend) на предмет утечек секретов, забытых API ключей и открытых служебных директорий.
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="bg-slate-900/50 p-3 rounded border border-slate-800">
-              <h3 className="text-indigo-400 font-bold text-xs uppercase mb-2">Capabilities</h3>
+              <h3 className="text-indigo-400 font-bold text-xs uppercase mb-2">Features</h3>
               <ul className="text-xs text-slate-400 space-y-1 font-mono">
-                <li>✓ Shadow DOM Traversal</li>
-                <li>✓ Global Window Object Scan</li>
-                <li>✓ API Key & JWT Pattern Match</li>
-                <li>✓ Source Map Detection</li>
+                <li>✓ <strong>Git Exposure Check</strong> (New)</li>
+                <li>✓ Shadow DOM Mining</li>
+                <li>✓ Global Object Inspector</li>
+                <li>✓ API Key Pattern Matching</li>
               </ul>
             </div>
             <div className="bg-slate-900/50 p-3 rounded border border-slate-800">
-              <h3 className="text-orange-400 font-bold text-xs uppercase mb-2">Usage</h3>
+              <h3 className="text-orange-400 font-bold text-xs uppercase mb-2">How to use</h3>
               <ol className="text-xs text-slate-400 space-y-1 font-mono list-decimal list-inside">
-                <li>Скопируйте код</li>
-                <li>Создайте закладку в браузере</li>
-                <li>Вставьте код вместо URL</li>
-                <li>Нажмите на закладку на целевом сайте</li>
+                <li>Нажмите COPY BOOKMARKLET</li>
+                <li>Создайте новую закладку в браузере</li>
+                <li>Вставьте код в поле URL</li>
+                <li>Запустите на анализируемом сайте</li>
               </ol>
             </div>
           </div>
@@ -197,9 +221,9 @@ export const ScannerTool: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             <div className="absolute top-2 right-2">
               <button 
                 onClick={copyToClipboard}
-                className={`text-xs font-bold px-3 py-1.5 rounded transition-all ${copied ? 'bg-green-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+                className={`text-xs font-bold px-3 py-1.5 rounded transition-all font-mono border border-transparent ${copied ? 'bg-green-900/50 text-green-400 border-green-500/50' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg'}`}
               >
-                {copied ? 'COPIED!' : 'COPY BOOKMARKLET'}
+                {copied ? 'COPIED TO CLIPBOARD' : 'COPY BOOKMARKLET'}
               </button>
             </div>
           </div>

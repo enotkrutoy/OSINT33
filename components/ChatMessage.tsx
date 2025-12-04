@@ -1,12 +1,53 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Message, MessageRole } from '../types';
 import { SourceChips } from './SourceChips';
+import { TerminalLoader } from './TerminalLoader';
 
 interface ChatMessageProps {
   message: Message;
 }
+
+// Custom Code Block Component with Copy Button
+const CodeBlock = ({ inline, className, children, ...props }: any) => {
+  const [copied, setCopied] = useState(false);
+  const match = /language-(\w+)/.exec(className || '');
+  const codeText = String(children).replace(/\n$/, '');
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(codeText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!inline && match) {
+    return (
+      <div className="relative group my-4 rounded-lg overflow-hidden border border-slate-700 bg-[#0f172a]">
+        <div className="flex justify-between items-center px-4 py-2 bg-slate-800/50 border-b border-slate-700">
+          <span className="text-xs font-mono text-slate-400">{match[1].toUpperCase()}</span>
+          <button 
+            onClick={handleCopy}
+            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors uppercase font-mono ${copied ? 'text-green-400' : 'text-slate-400 hover:text-white'}`}
+          >
+            {copied ? '[COPIED]' : '[COPY]'}
+          </button>
+        </div>
+        <pre className="p-4 overflow-x-auto">
+          <code className={className} {...props}>
+            {children}
+          </code>
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <code className={`${className} bg-slate-800/50 px-1.5 py-0.5 rounded text-amber-200 font-mono text-sm border border-white/5`} {...props}>
+      {children}
+    </code>
+  );
+};
 
 export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
   const isUser = message.role === MessageRole.USER;
@@ -15,10 +56,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-4 group`}>
       <div 
         className={`
-          relative max-w-[95%] md:max-w-[85%] lg:max-w-[75%] px-4 py-3 border-l-2
+          relative max-w-[95%] md:max-w-[85%] lg:max-w-[75%] px-4 py-3 border-l-2 shadow-lg
           ${isUser 
-            ? 'bg-indigo-950/30 border-indigo-500 text-indigo-100' 
-            : 'bg-slate-900/50 border-orange-500/50 text-slate-300'
+            ? 'bg-indigo-950/20 border-indigo-500 text-indigo-100 backdrop-blur-sm' 
+            : 'bg-slate-900/40 border-orange-500/50 text-slate-300 backdrop-blur-sm'
           }
         `}
       >
@@ -34,21 +75,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
 
         {/* User Attachment Display */}
         {isUser && message.attachment && (
-          <div className="mb-3 rounded-md overflow-hidden border border-slate-700 max-w-xs">
+          <div className="mb-3 rounded-md overflow-hidden border border-slate-700 max-w-xs group-hover:border-indigo-500/50 transition-colors">
             <img 
               src={`data:${message.attachment.mimeType};base64,${message.attachment.base64}`} 
               alt="User Upload" 
               className="w-full h-auto opacity-90 hover:opacity-100 transition-opacity"
             />
-            <div className="bg-slate-950 px-2 py-1 text-[10px] font-mono text-slate-500">
-              [IMAGE_DATA_LOADED]
+            <div className="bg-slate-950 px-2 py-1 text-[10px] font-mono text-slate-500 flex justify-between">
+              <span>[IMG_DATA]</span>
+              <span>{Math.round(message.attachment.base64.length / 1024)} KB</span>
             </div>
           </div>
         )}
 
         {/* Content */}
         <div className={`markdown-body leading-relaxed break-words font-light ${isUser ? 'text-indigo-50' : 'text-slate-300'}`}>
-           <ReactMarkdown remarkPlugins={[remarkGfm]}>
+           <ReactMarkdown 
+             remarkPlugins={[remarkGfm]}
+             components={{ code: CodeBlock }}
+           >
               {message.content}
            </ReactMarkdown>
         </div>
@@ -64,15 +109,4 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(({ message }) => {
   );
 });
 
-export const ThinkingBubble: React.FC = () => (
-  <div className="flex w-full justify-start mb-4 animate-pulse">
-    <div className="bg-slate-900/50 border-l-2 border-orange-500/30 px-4 py-3 flex items-center space-x-2">
-      <span className="text-orange-500 font-mono text-xs blink">_VALIDATING_SOURCES</span>
-      <div className="flex space-x-1">
-        <div className="w-1 h-1 bg-orange-500 rounded-full typing-dot"></div>
-        <div className="w-1 h-1 bg-orange-500 rounded-full typing-dot"></div>
-        <div className="w-1 h-1 bg-orange-500 rounded-full typing-dot"></div>
-      </div>
-    </div>
-  </div>
-);
+export { TerminalLoader }; // Re-export for convenience
