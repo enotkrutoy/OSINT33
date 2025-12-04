@@ -19,7 +19,7 @@ class AgentRunner {
       const chat = this.getClient().chats.create({
         model: MODEL_NAME,
         config: {
-          thinkingConfig: { thinkingBudget: 8192 }, // Увеличен бюджет для глубокого анализа файлов и генерации Dorks
+          thinkingConfig: { thinkingBudget: 8192 }, // Increased budget for deep file analysis and Dork generation
           // ⚠️ COMBAT MODE: SAFETY FILTERS DISABLED
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },

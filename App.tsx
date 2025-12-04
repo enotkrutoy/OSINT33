@@ -90,28 +90,49 @@ const App: React.FC = () => {
     }
   };
 
-  const handleExportSession = () => {
+  const handleExportSession = (format: 'json' | 'md') => {
     if (!sessionState.messages.length) return;
-    const report = {
-      timestamp: new Date().toISOString(),
-      sessionId: sessionState.sessionId,
-      messages: sessionState.messages.map(m => ({
-        role: m.role,
-        time: new Date(m.timestamp).toLocaleTimeString(),
-        content: m.content,
-        sources: m.groundingChunks?.map(g => g.web?.uri)
-      }))
-    };
-    
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `osint_report_${new Date().toISOString().slice(0,10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    if (format === 'json') {
+      const report = {
+        timestamp: new Date().toISOString(),
+        sessionId: sessionState.sessionId,
+        messages: sessionState.messages.map(m => ({
+          role: m.role,
+          time: new Date(m.timestamp).toLocaleTimeString(),
+          content: m.content,
+          sources: m.groundingChunks?.map(g => g.web?.uri)
+        }))
+      };
+      
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `osint_report_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      // Markdown Export
+      let mdContent = `# OSINT REPORT - ${new Date().toLocaleString()}\n\n`;
+      sessionState.messages.forEach(msg => {
+        const role = msg.role === MessageRole.USER ? 'USER' : 'AUDITOR';
+        mdContent += `### [${role}] ${new Date(msg.timestamp).toLocaleTimeString()}\n`;
+        mdContent += `${msg.content}\n\n`;
+        if (msg.groundingChunks && msg.groundingChunks.length) {
+          mdContent += `**Sources:**\n`;
+          msg.groundingChunks.forEach(s => {
+             if (s.web) mdContent += `- [${s.web.title}](${s.web.uri})\n`;
+          });
+          mdContent += `\n`;
+        }
+        mdContent += `---\n\n`;
+      });
+      navigator.clipboard.writeText(mdContent);
+      alert("Отчет скопирован в буфер обмена (Markdown)");
+    }
   };
 
   const scrollToBottom = () => {
@@ -121,6 +142,51 @@ const App: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [sessionState.messages, sessionState.status]);
+
+  // Core Agent execution logic
+  const executeAgent = async (sessionId: string, userContent: string, attachment?: Attachment) => {
+    try {
+      const assistantMsgId = uuidv4();
+      let currentAssistantMsg: Message = {
+        id: assistantMsgId,
+        role: MessageRole.ASSISTANT,
+        content: '',
+        timestamp: Date.now()
+      };
+
+      setSessionState(prev => ({ ...prev, messages: [...prev.messages, currentAssistantMsg], status: 'streaming' }));
+
+      const stream = agentRunner.call_agent_async(sessionId, userContent, attachment);
+      let isFirstChunk = true;
+
+      for await (const chunk of stream) {
+        if (isFirstChunk) isFirstChunk = false;
+        
+        currentAssistantMsg = {
+          ...currentAssistantMsg,
+          content: chunk.text,
+          groundingChunks: chunk.groundingChunks
+        };
+        setSessionState(prev => ({
+            ...prev,
+            messages: prev.messages.map(msg => msg.id === assistantMsgId ? currentAssistantMsg : msg)
+        }));
+      }
+
+      sessionService.addMessage(sessionId, currentAssistantMsg);
+      setSessionState(prev => ({ ...prev, status: 'idle' }));
+      refreshSessionList();
+    } catch (error) {
+      const errorMsg: Message = {
+        id: uuidv4(),
+        role: MessageRole.SYSTEM,
+        content: "**[CRITICAL FAILURE]** Связь с ядром потеряна. Проверьте API ключ.",
+        timestamp: Date.now()
+      };
+      sessionService.addMessage(sessionId, errorMsg);
+      setSessionState(prev => ({ ...prev, messages: [...prev.messages, errorMsg], status: 'error' }));
+    }
+  };
 
   const handleSendMessage = async (content: string, attachment?: Attachment) => {
     if (!sessionState.sessionId) return;
@@ -135,52 +201,61 @@ const App: React.FC = () => {
 
     sessionService.addMessage(sessionState.sessionId, userMsg);
     setSessionState(prev => ({ ...prev, messages: [...prev.messages, userMsg], status: 'thinking' }));
-    refreshSessionList(); // Update preview in sidebar
+    refreshSessionList();
 
-    try {
-      const assistantMsgId = uuidv4();
-      let currentAssistantMsg: Message = {
-        id: assistantMsgId,
-        role: MessageRole.ASSISTANT,
-        content: '',
-        timestamp: Date.now()
-      };
+    await executeAgent(sessionState.sessionId, content, attachment);
+  };
 
-      setSessionState(prev => ({ ...prev, messages: [...prev.messages, currentAssistantMsg] }));
+  const handleRegenerate = async (messageId: string) => {
+    if (sessionState.status !== 'idle' && sessionState.status !== 'error') return;
 
-      const stream = agentRunner.call_agent_async(sessionState.sessionId, content, attachment);
-      let isFirstChunk = true;
+    // Find the message index
+    const msgIndex = sessionState.messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
 
-      for await (const chunk of stream) {
-        if (isFirstChunk) {
-           setSessionState(prev => ({ ...prev, status: 'streaming' }));
-           isFirstChunk = false;
-        }
-        currentAssistantMsg = {
-          ...currentAssistantMsg,
-          content: chunk.text,
-          groundingChunks: chunk.groundingChunks
-        };
-        setSessionState(prev => ({
-            ...prev,
-            messages: prev.messages.map(msg => msg.id === assistantMsgId ? currentAssistantMsg : msg)
-        }));
-      }
+    // Ensure it's an assistant message and there is a preceding user message
+    const prevMsg = sessionState.messages[msgIndex - 1];
+    if (!prevMsg || prevMsg.role !== MessageRole.USER) return;
 
-      sessionService.addMessage(sessionState.sessionId, currentAssistantMsg);
-      setSessionState(prev => ({ ...prev, status: 'idle' }));
-      refreshSessionList();
+    // Truncate history in storage (remove this assistant message)
+    sessionService.truncateHistory(sessionState.sessionId, messageId, true);
+    
+    // Update local state (remove this assistant message)
+    setSessionState(prev => ({
+      ...prev,
+      messages: prev.messages.slice(0, msgIndex),
+      status: 'thinking'
+    }));
 
-    } catch (error) {
-      const errorMsg: Message = {
-        id: uuidv4(),
-        role: MessageRole.SYSTEM,
-        content: "**[CRITICAL FAILURE]** Связь с ядром потеряна. Проверьте API ключ.",
-        timestamp: Date.now()
-      };
-      sessionService.addMessage(sessionState.sessionId, errorMsg);
-      setSessionState(prev => ({ ...prev, messages: [...prev.messages, errorMsg], status: 'error' }));
-    }
+    // Re-run agent with previous user input
+    await executeAgent(sessionState.sessionId, prevMsg.content, prevMsg.attachment);
+  };
+
+  const handleEditMessage = async (messageId: string, newContent: string) => {
+    if (sessionState.status !== 'idle' && sessionState.status !== 'error') return;
+
+    const msgIndex = sessionState.messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
+
+    const targetMsg = sessionState.messages[msgIndex];
+    if (targetMsg.role !== MessageRole.USER) return;
+
+    // Update storage: Update text AND remove everything after this message
+    sessionService.updateMessage(sessionState.sessionId, messageId, newContent);
+    sessionService.truncateHistory(sessionState.sessionId, messageId, false); // false = don't remove self, remove after
+
+    // Update state: Slice messages up to this one, update content
+    const updatedMessages = sessionState.messages.slice(0, msgIndex + 1);
+    updatedMessages[msgIndex] = { ...targetMsg, content: newContent };
+
+    setSessionState(prev => ({
+      ...prev,
+      messages: updatedMessages,
+      status: 'thinking'
+    }));
+
+    // Re-run agent
+    await executeAgent(sessionState.sessionId, newContent, targetMsg.attachment);
   };
 
   return (
@@ -225,7 +300,11 @@ const App: React.FC = () => {
                <span className="text-xs font-mono font-bold text-slate-300 group-hover:text-indigo-300">DOM SCANNER</span>
            </button>
            
-           <button onClick={handleExportSession} className="p-2 rounded bg-slate-800/50 hover:bg-emerald-900/20 border border-white/10 hover:border-emerald-500/50 transition-all text-slate-400 hover:text-emerald-400" title="Export Report">
+           <button onClick={() => handleExportSession('md')} className="p-2 rounded bg-slate-800/50 hover:bg-blue-900/20 border border-white/10 hover:border-blue-500/50 transition-all text-slate-400 hover:text-blue-400" title="Copy History (Markdown)">
+             <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+           </button>
+
+           <button onClick={() => handleExportSession('json')} className="p-2 rounded bg-slate-800/50 hover:bg-emerald-900/20 border border-white/10 hover:border-emerald-500/50 transition-all text-slate-400 hover:text-emerald-400" title="Export JSON">
              <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
            </button>
         </div>
@@ -237,8 +316,14 @@ const App: React.FC = () => {
         style={{ marginLeft: isSidebarOpen ? '18rem' : '0' }}
       >
         <div className="max-w-4xl mx-auto flex flex-col min-h-full justify-end">
-             {sessionState.messages.map((msg) => (
-               <ChatMessage key={msg.id} message={msg} />
+             {sessionState.messages.map((msg, index) => (
+               <ChatMessage 
+                  key={msg.id} 
+                  message={msg} 
+                  isLast={index === sessionState.messages.length - 1}
+                  onRegenerate={handleRegenerate}
+                  onEdit={handleEditMessage}
+               />
              ))}
              {sessionState.status === 'thinking' && <TerminalLoader />}
              <div ref={messagesEndRef} className="h-24" /> {/* Spacer for floating input */}

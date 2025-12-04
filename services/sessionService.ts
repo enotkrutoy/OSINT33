@@ -60,6 +60,30 @@ class InMemorySessionService {
     this.saveToStorage();
   }
 
+  public updateMessage(sessionId: string, messageId: string, newContent: string): void {
+    const history = this.getHistory(sessionId);
+    const index = history.findIndex(m => m.id === messageId);
+    if (index !== -1) {
+      history[index] = { ...history[index], content: newContent };
+      this.sessions.set(sessionId, history);
+      this.saveToStorage();
+    }
+  }
+
+  // Удаляет сообщения, начиная с указанного ID (включительно или эксклюзивно)
+  public truncateHistory(sessionId: string, startMessageId: string, inclusive: boolean = true): void {
+    const history = this.getHistory(sessionId);
+    const index = history.findIndex(m => m.id === startMessageId);
+    
+    if (index !== -1) {
+      // Если inclusive = true, удаляем само сообщение и всё после него
+      // Если inclusive = false, удаляем всё ПОСЛЕ сообщения
+      const newHistory = inclusive ? history.slice(0, index) : history.slice(0, index + 1);
+      this.sessions.set(sessionId, newHistory);
+      this.saveToStorage();
+    }
+  }
+
   public clearSession(sessionId: string): void {
     this.sessions.delete(sessionId);
     this.saveToStorage();
