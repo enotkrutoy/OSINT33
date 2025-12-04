@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Red Team OSINT Validator</title>
-    <!-- Tailwind CDN -->
+    <title>Red Team OSINT Validator | Hunter-Killer AI</title>
+    <!-- Tailwind CDN (Development only - built CSS will replace this in production if configured, but fine for simple apps) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -19,6 +19,7 @@
         width: 100%;
         margin: 0;
         padding: 0;
+        overscroll-behavior: none; /* Prevent bounce on mobile */
       }
       body {
         font-family: 'Inter', sans-serif;
@@ -147,7 +148,7 @@
         opacity: 0.15;
       }
     </style>
-<script type="importmap">
+  <script type="importmap">
 {
   "imports": {
     "react": "https://aistudiocdn.com/react@^19.2.1",
