@@ -134,7 +134,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#050505] text-slate-200 relative overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-[#050505] text-slate-200 relative overflow-hidden">
       {/* Background Ambience */}
       <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/10 via-[#050505] to-[#050505] pointer-events-none"></div>
 
